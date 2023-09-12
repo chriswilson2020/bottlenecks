@@ -2,7 +2,7 @@
 
 ## System Bottleneck Analysis Script
 
-This repository contains a Bash script that performs a series of system analyses on a macOS to detect potential performance bottlenecks. The script checks various system metrics such as CPU usage, memory utilization, disk usage, network performance, and more. The results of the analysis are written to a file named `system_performance.txt` and also displayed in the console.
+This repository contains a Bash script that performs a series of system analyses on macOS to detect potential performance bottlenecks. The script checks various system metrics such as CPU usage, memory utilization, disk usage, network performance, and more. The results of the analysis are written to a file named `system_performance.txt` and also displayed in the console.
 
 ### What the Script Does
 
@@ -28,7 +28,7 @@ This repository contains a Bash script that performs a series of system analyses
 
 #### 1. Clone the Repository
 
-To download the script to your macOS, you need to have `git` installed. If you don't have `git` installed, you can install it using Homebrew:
+To download the script to your mac, you need to have `git` installed. If you don't have `git` installed, you can install it using Homebrew:
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
@@ -65,7 +65,7 @@ Execute the script:
 ./bottleneck.sh
 ```
 
-After completion, you can check the `system_performance.txt` file for the collected metrics and the identified bottlenecks.
+Potential bottlenecks are printed to the screen. After completion, you can check the `system_performance.txt` file for the collected metrics and the identified bottlenecks.
 
 ### Contribution
 
