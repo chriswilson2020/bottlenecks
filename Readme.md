@@ -54,17 +54,15 @@ cd bottlenecks
 By default, the script might not have execution permissions. You can grant execute permissions to the script using the following command:
 
 ```bash
-chmod +x ./[name-of-the-script].sh
+chmod +x ./bottleneck.sh
 ```
-
-Replace `[name-of-the-script]` with the actual filename of the script if it's different.
 
 #### 4. Run the Script
 
 Execute the script:
 
 ```bash
-./[name-of-the-script].sh
+./bottleneck.sh
 ```
 
 After completion, you can check the `system_performance.txt` file for the collected metrics and the identified bottlenecks.
