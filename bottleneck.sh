@@ -72,7 +72,7 @@ average_ping=$(awk "BEGIN {print $total_ping / $iterations}")
 slow_ping_threshold=50
 high_iostat_threshold=10
 
-echo "Analysis Results:"
+echo "List of Identified Bottlenecks:"
 
 if (( $(echo "$average_cpu > $high_cpu_threshold" | bc -l) )); then
     echo "- The average CPU usage is high. Possible CPU bottleneck."
@@ -90,3 +90,25 @@ fi
 if [[ "$primary_adapter" && $(echo "$average_netstat > 1000" | bc) -eq 1 ]]; then
     echo "- The primary network adapter ($primary_adapter) has a high number of connections. Possible network bottleneck."
 fi
+
+if (( $(echo "$average_cpu > $high_cpu_threshold" | bc -l) )); then
+    analysis_output+="- The average CPU usage is high. Possible CPU bottleneck.\n"
+fi
+
+if (( $(echo "$average_ping > $slow_ping_threshold" | bc -l) )); then
+    analysis_output+="- The average ping to 8.8.8.8 is slow. Possible network bottleneck.\n"
+fi
+
+if (( $(echo "$average_iostat > $high_iostat_threshold" | bc -l) )); then
+    analysis_output+="- The average IO is high. Possible disk bottleneck.\n"
+fi
+
+if [[ "$primary_adapter" && $(echo "$average_netstat > 1000" | bc) -eq 1 ]]; then
+    analysis_output+="- The primary network adapter ($primary_adapter) has a high number of connections. Possible network bottleneck.\n"
+fi
+
+# Print the analysis output to console
+echo -e "$analysis_output"
+
+# Append the analysis output to the file
+echo -e "\nList of Identified Bottlenecks:\n$analysis_output" >> $OUTPUT_FILE
