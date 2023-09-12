@@ -1,18 +1,19 @@
 #!/bin/bash
 
+# Declare and initialize output file.
 OUTPUT_FILE="system_performance.txt"
 
+# Determine the primary network adapter using a known IP (Google's DNS for this purpose).
 primary_adapter=$(route get 8.8.8.8 | grep interface | awk '{print $2}')
 num_cores=$(sysctl -n hw.ncpu)
 high_cpu_threshold=$(awk "BEGIN {print $num_cores * 90}")
 
-# Determine the primary network adapter
-primary_adapter=$(route get 8.8.8.8 | grep interface | awk '{print $2}')
-
+# Calculate the number of iterations the monitoring will be performed.
 interval=1
 duration=5
 iterations=$(awk "BEGIN {print int($duration / $interval)}")
 
+# Initialize the cumulative totals.
 total_cpu=0
 total_netstat=0
 total_iostat=0
@@ -20,21 +21,26 @@ total_ping=0
 
 echo  "Completed cycle"
 
+# Monitor the system over multiple intervals.
 for i in $(seq 1 $iterations); do
+    # Collect system stats.
     cpu_value=$(ps -A -o %cpu | awk '{sum+=$1} END {print sum}')
     netstat_value=$(netstat -tn | wc -l)
     iostat_value=$(iostat -n 1 | awk 'NR==3 {print $3}')
     ping_value=$(ping -c 1 8.8.8.8 | tail -1 | awk -F '/' '{print $5}')
-    
+
+    # Accumulate the stats.
     total_cpu=$(awk "BEGIN {print $total_cpu + $cpu_value}")
     total_netstat=$(awk "BEGIN {print $total_netstat + $netstat_value}")
     total_iostat=$(awk "BEGIN {print $total_iostat + $iostat_value}")
     total_ping=$(awk "BEGIN {print $total_ping + $ping_value}")
     
+    # Wait for the next iteration.
     sleep $interval
     echo "..." $i " of " $iterations
 done
 
+# Calculate averages for the accumulated metrics.
 average_cpu=$(awk "BEGIN {print $total_cpu / $iterations}")
 average_netstat=$(awk "BEGIN {print $total_netstat / $iterations}")
 average_iostat=$(awk "BEGIN {print $total_iostat / $iterations}")
@@ -54,7 +60,9 @@ disk_threshold=90
 network_errors=$(netstat -i | grep -m 1 $primary_adapter | awk '{print $7}')
 network_drops=$(netstat -i | grep -m 1 $primary_adapter | awk '{print $9}')
 
+# Output detailed system info to a file.
 {
+  # Various system commands and their outputs for comprehensive analysis.
   echo "Top Output:"
   top -l 1 -n 0
   echo ""
@@ -76,6 +84,7 @@ network_drops=$(netstat -i | grep -m 1 $primary_adapter | awk '{print $9}')
   primary_adapter=$(route get default | grep "interface" | awk '{print $2}')
   echo "Primary network adapter: $primary_adapter"
   echo ""
+  # Summary of averages and metrics.
   echo "Average CPU: $average_cpu%"
   echo "Average netstat: $average_netstat connections"
   echo "Average iostat: $average_iostat tps"
@@ -89,12 +98,13 @@ network_drops=$(netstat -i | grep -m 1 $primary_adapter | awk '{print $9}')
   echo "Network Drops on $primary_adapter: $network_drops drops"
 } >> $OUTPUT_FILE
 
-# Analyze the data
+# Initialize bottleneck analysis thresholds.
 slow_ping_threshold=50
 high_iostat_threshold=10
 high_active_memory_percentage=80
 high_wired_memory_percentage=80
 
+# Check and log potential bottlenecks.
 echo "List of Identified Bottlenecks:"
 
 if (( $(echo "$average_cpu > $high_cpu_threshold" | bc -l) )); then
@@ -165,8 +175,8 @@ if [[ "$primary_adapter" ]]; then
   fi
 fi
 
-# Print the analysis output to console
-echo -e "$analysis_output" 
+# Output identified bottlenecks to the console.
+echo "$analysis_output" 
 
-# Append the analysis output to the file
+# Append identified bottlenecks to the output file.
 echo -e "\nList of Identified Bottlenecks:\n$analysis_output" >> $OUTPUT_FILE
