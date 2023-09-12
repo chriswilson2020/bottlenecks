@@ -1,58 +1,92 @@
 #!/bin/bash
 
-# Set output file name
-OUTPUT_FILE="system_performance_avg.txt"
+OUTPUT_FILE="system_performance.txt"
 
-# Set the number of iterations and interval
-ITERATIONS=300
-INTERVAL=0.1
+primary_adapter=$(route get 8.8.8.8 | grep interface | awk '{print $2}')
+num_cores=$(sysctl -n hw.ncpu)
+high_cpu_threshold=$(awk "BEGIN {print $num_cores * 90}")
 
-# Initialize variables for summing metrics
-CPU_USAGE_SUM=0
-MEM_USAGE_SUM=0
-DISK_READ_SUM=0
-DISK_WRITE_SUM=0
-NET_IN_SUM=0
-NET_OUT_SUM=0
+# Determine the primary network adapter
+primary_adapter=$(route get 8.8.8.8 | grep interface | awk '{print $2}')
 
-# Collect data over time
-for ((i=1; i<=ITERATIONS; i++)); do
-  TOP_OUTPUT=$(top -l 1 -n 0)
-  IOSTAT_OUTPUT=$(iostat)
-  NETSTAT_OUTPUT=$(netstat -i)
+interval=1
+duration=5
+iterations=$(awk "BEGIN {print int($duration / $interval)}")
 
-  CPU_USAGE=$(echo "$TOP_OUTPUT" | awk '/CPU usage:/ {print $3}')
-  MEM_USAGE=$(echo "$TOP_OUTPUT" | awk '/PhysMem:/ {print $2}' | tr -d 'A-Za-z')
-  DISK_READ=$(echo "$IOSTAT_OUTPUT" | awk 'NR==4 {print $4}')
-  DISK_WRITE=$(echo "$IOSTAT_OUTPUT" | awk 'NR==4 {print $7}')
-  NET_IN=$(echo "$NETSTAT_OUTPUT" | awk '/en0/ {print $7}')
-  NET_OUT=$(echo "$NETSTAT_OUTPUT" | awk '/en0/ {print $10}')
+total_cpu=0
+total_netstat=0
+total_iostat=0
+total_ping=0
 
-  CPU_USAGE_SUM=$(echo "$CPU_USAGE_SUM + $CPU_USAGE" | bc)
-  MEM_USAGE_SUM=$(echo "$MEM_USAGE_SUM + $MEM_USAGE" | bc)
-  DISK_READ_SUM=$(echo "$DISK_READ_SUM + $DISK_READ" | bc)
-  DISK_WRITE_SUM=$(echo "$DISK_WRITE_SUM + $DISK_WRITE" | bc)
-  NET_IN_SUM=$(echo "$NET_IN_SUM + $NET_IN" | bc)
-  NET_OUT_SUM=$(echo "$NET_OUT_SUM + $NET_OUT" | bc)
+echo  "Completed cycle"
 
-  sleep $INTERVAL
+for i in $(seq 1 $iterations); do
+    cpu_value=$(ps -A -o %cpu | awk '{sum+=$1} END {print sum}')
+    netstat_value=$(netstat -tn | wc -l)
+    iostat_value=$(iostat -n 1 | awk 'NR==3 {print $3}')
+    ping_value=$(ping -c 1 8.8.8.8 | tail -1 | awk -F '/' '{print $5}')
+    
+    total_cpu=$(awk "BEGIN {print $total_cpu + $cpu_value}")
+    total_netstat=$(awk "BEGIN {print $total_netstat + $netstat_value}")
+    total_iostat=$(awk "BEGIN {print $total_iostat + $iostat_value}")
+    total_ping=$(awk "BEGIN {print $total_ping + $ping_value}")
+    
+    sleep $interval
+    echo "..." $i " of " $iterations
 done
 
-# Calculate average values
-CPU_USAGE_AVG=$(echo "scale=2; $CPU_USAGE_SUM / $ITERATIONS" | bc)
-MEM_USAGE_AVG=$(echo "scale=2; $MEM_USAGE_SUM / $ITERATIONS" | bc)
-DISK_READ_AVG=$(echo "scale=2; $DISK_READ_SUM / $ITERATIONS" | bc)
-DISK_WRITE_AVG=$(echo "scale=2; $DISK_WRITE_SUM / $ITERATIONS" | bc)
-NET_IN_AVG=$(echo "scale=2; $NET_IN_SUM / $ITERATIONS" | bc)
-NET_OUT_AVG=$(echo "scale=2; $NET_OUT_SUM / $ITERATIONS" | bc)
+average_cpu=$(awk "BEGIN {print $total_cpu / $iterations}")
+average_netstat=$(awk "BEGIN {print $total_netstat / $iterations}")
+average_iostat=$(awk "BEGIN {print $total_iostat / $iterations}")
+average_ping=$(awk "BEGIN {print $total_ping / $iterations}")
 
-# Write the average values to the output file
-echo "Average CPU Usage: $CPU_USAGE_AVG%" > $OUTPUT_FILE
-echo "Average Memory Usage: $MEM_USAGE_AVG MB" >> $OUTPUT_FILE
-echo "Average Disk Read: $DISK_READ_AVG KB/s" >> $OUTPUT_FILE
-echo "Average Disk Write: $DISK_WRITE_AVG KB/s" >> $OUTPUT_FILE
-echo "Average Network In: $NET_IN_AVG packets" >> $OUTPUT_FILE
-echo "Average Network Out: $NET_OUT_AVG packets" >> $OUTPUT_FILE
+{
+  echo "Top Output:"
+  top -l 1 -n 0
+  echo ""
+  echo "Iostat Output:"
+  iostat
+  echo ""
+  echo "Nettop Output:"
+  nettop -P -L 1 -k time,interface,state,rx_dupe,rx_ooo,re-tx,bytes_in,bytes_out -t external
+  echo ""
+  echo "VM Stat Output:"
+  vm_stat
+  echo ""
+  echo "Netstat Output:"
+  netstat -i
+  echo ""
+  echo "Traceroute Output:"
+  ping -c 1 8.8.8.8
+  echo "Determining primary network adapter..."
+  primary_adapter=$(route get default | grep "interface" | awk '{print $2}')
+  echo "Primary network adapter: $primary_adapter"
+  echo ""
+  echo "Average CPU: $average_cpu"
+  echo "Average netstat: $average_netstat"
+  echo "Average iostat: $average_iostat"
+  echo "Average ping: $average_ping"
+} > $OUTPUT_FILE
 
-# Print the output file location
-echo "System performance averages saved to $OUTPUT_FILE"
+# Analyze the data
+slow_ping_threshold=50
+high_iostat_threshold=10
+
+echo "Analysis Results:"
+
+if (( $(echo "$average_cpu > $high_cpu_threshold" | bc -l) )); then
+    echo "- The average CPU usage is high. Possible CPU bottleneck."
+fi
+
+
+if (( $(echo "$average_ping > $slow_ping_threshold" | bc -l) )); then
+    echo "- The average ping to 8.8.8.8 is slow. Possible network bottleneck."
+fi
+
+if (( $(echo "$average_iostat > $high_iostat_threshold" | bc -l) )); then
+    echo "- The average IO is high. Possible disk bottleneck."
+fi
+
+if [[ "$primary_adapter" && $(echo "$average_netstat > 1000" | bc) -eq 1 ]]; then
+    echo "- The primary network adapter ($primary_adapter) has a high number of connections. Possible network bottleneck."
+fi
